@@ -41,25 +41,39 @@ void ServoControl::setAnglesDirect(int sailPWMus, int rudderPWMus) {
     static int lastSailPWM = 1500;
     static int lastRudderPWM = 1500;
     
-    // Appliquer un offset si la variation est très petite (< 10µs)
+    // Améliorer la sensibilité pour les petites variations
     int sailDiff = abs(sailPWMus - lastSailPWM);
     int rudderDiff = abs(rudderPWMus - lastRudderPWM);
     
-    if (sailDiff > 0 && sailDiff < 10) {
-        // Amplifier les petites variations
-        sailPWMus = lastSailPWM + (sailPWMus > lastSailPWM ? 15 : -15);
+    // Réduire le seuil pour plus de sensibilité (< 5µs au lieu de 10µs)
+    if (sailDiff > 0 && sailDiff < 5) {
+        // Amplifier les très petites variations
+        sailPWMus = lastSailPWM + (sailPWMus > lastSailPWM ? 8 : -8);
     }
     
-    if (rudderDiff > 0 && rudderDiff < 10) {
-        // Amplifier les petites variations
-        rudderPWMus = lastRudderPWM + (rudderPWMus > lastRudderPWM ? 15 : -15);
+    if (rudderDiff > 0 && rudderDiff < 5) {
+        // Amplifier les très petites variations  
+        rudderPWMus = lastRudderPWM + (rudderPWMus > lastRudderPWM ? 8 : -8);
     }
     
-    // Contraindre dans les limites servo
-    sailPWMus = constrain(sailPWMus, SERVO_PULSE_MIN, SERVO_PULSE_MAX);
-    rudderPWMus = constrain(rudderPWMus, SERVO_PULSE_MIN, SERVO_PULSE_MAX);
+    // MAPPING PRÉCIS POUR TÉLÉCOMMANDE 5.68%-8.67% DUTY CYCLE
+    // Télécommande: 5.68% = 1136µs, 8.67% = 1734µs (598µs de variation)
+    // Mapper vers une plage servo optimisée pour contrôle précis
     
-    // COPIE DIRECTE : Envoyer microsecondes exactes
+    // Mapper 1136-1734µs (entrée mesurée) vers 1450-1550µs (sortie très limitée)
+    // Plage ultra-réduite pour éviter les tours multiples - seulement 100µs de variation
+    sailPWMus = map(sailPWMus, 1136, 1734, 1450, 1550);
+    rudderPWMus = map(rudderPWMus, 1136, 1734, 1450, 1550);
+    
+    // Zone morte au centre pour stabilité (réduite pour la plage limitée)
+    if (abs(sailPWMus - 1500) < 10) sailPWMus = 1500;
+    if (abs(rudderPWMus - 1500) < 10) rudderPWMus = 1500;
+    
+    // Contraindre dans la plage ultra-réduite pour éviter tours multiples
+    sailPWMus = constrain(sailPWMus, 1450, 1550);
+    rudderPWMus = constrain(rudderPWMus, 1450, 1550);
+    
+    // COPIE LIMITÉE : Envoyer microsecondes dans la plage réduite
     sailServo.writeMicroseconds(sailPWMus);
     rudderServo.writeMicroseconds(rudderPWMus);
     

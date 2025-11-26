@@ -42,8 +42,8 @@
 #define RADIO_SEL_IN 23      // GPIO 23 - SEL IN (CH6) - Sélection mode (0=autonome, 1=radiocommande)
 
 // Configuration PWM Input
-#define RADIO_PWM_MIN 1000   // Valeur PWM minimum (µs)
-#define RADIO_PWM_MAX 2000  // Valeur PWM maximum (µs)
+#define RADIO_PWM_MIN 1136   // Valeur PWM minimum (µs) - 5.68% duty cycle
+#define RADIO_PWM_MAX 1734  // Valeur PWM maximum (µs) - 8.67% duty cycle
 #define RADIO_PWM_READ_INTERVAL 20  // Intervalle de lecture PWM (ms) - Plus rapide pour copie signal
 
 // ============================================================================

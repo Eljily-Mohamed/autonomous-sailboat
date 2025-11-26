@@ -41,8 +41,20 @@ int RadioReceiver::readPWM(int pin) {
     
     unsigned long avgPulse = totalPulse / validReadings;
     
-    // COPIE EXACTE : Pas de contrainte pour garder le signal original
-    return avgPulse;
+    // AMÉLIORER LA PRÉCISION : Filtrer les valeurs aberrantes
+    // Si la valeur est très éloignée de la plage attendue, utiliser la dernière valeur valide
+    static unsigned long lastValidSail = 1435;  // Centre de votre télécommande
+    static unsigned long lastValidRudder = 1435;
+    
+    // Vérifier si la valeur est dans une plage raisonnable (1100-1800µs pour votre télécommande)
+    if (avgPulse >= 1100 && avgPulse <= 1800) {
+        if (pin == RADIO_PWM1_IN) lastValidSail = avgPulse;
+        if (pin == RADIO_PWM2_IN) lastValidRudder = avgPulse;
+        return avgPulse;
+    } else {
+        // Valeur aberrante, retourner la dernière valeur valide
+        return (pin == RADIO_PWM1_IN) ? lastValidSail : lastValidRudder;
+    }
 }
 
 void RadioReceiver::checkMode() {
