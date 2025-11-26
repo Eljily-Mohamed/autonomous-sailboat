@@ -78,42 +78,28 @@ void setupGPS() {
 // INITIALISATION LoRa
 // ============================================================================
 void setupLoRa() {
-  jsonMessage("LoRa", "info", "Initializing");
+  // LoRa silencieux pour mode manuel
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
   LoRa.setPins(LORA_CS, LORA_RST, LORA_IRQ);
-
-  if (LoRa.begin(LORA_BAND) != 1) {
-    jsonMessage("LoRa", "error", "Setup failed - Continuing without LoRa");
-    jsonMessage("LoRa", "warning", "LoRa will retry in background");
-    // NE PAS BLOQUER - Continuer sans LoRa pour permettre les tests
-  } else {
-    jsonMessage("LoRa", "info", "Ready");
-  }
+  LoRa.begin(LORA_BAND);  // Pas de vérification, continue quoi qu'il arrive
 }
 
 // ============================================================================
 // SETUP
 // ============================================================================
 void setup() {
-  Serial.begin(SERIAL_BAUD_RATE);
+  // Serial.begin(SERIAL_BAUD_RATE);  // Désactivé pour mode manuel pur
   delay(500);
 
-  jsonMessage("System", "info", "Starting AutoBoat firmware...");
-  
+  // MODE MANUEL FOCUS : Pas de messages, juste l'initialisation
   setupLoRa();
-  setupGPS();
+  // setupGPS();  // Désactivé pour se concentrer sur le mode manuel
   
   servoControl.init();
-  jsonMessage("Servos", "info", "Ready");
-  
   radioReceiver.init();
-  jsonMessage("RadioReceiver", "info", "Ready");
-  
   motorControl.init();
-  jsonMessage("Motor", "info", "Ready");
 
   boatMode = "setup-ready";
-  jsonMessage("System", "info", "All systems ready");
 }
 
 // ============================================================================
@@ -123,25 +109,29 @@ void handleServoControl() {
   // Mettre à jour le récepteur radio
   radioReceiver.update();
 
-  // Vérifier les changements de mode et notifier
+  // Vérifier les changements de mode (sans messages)
   if (radioReceiver.hasModeChanged()) {
-    if (radioReceiver.isRadioControlMode()) {
-      jsonMessage("Mode", "info", "Radio control active");
-    } else {
-      jsonMessage("Mode", "info", "Autonomous mode active");
-    }
     radioReceiver.resetModeChanged();
   }
 
-  // Si mode radiocommande (SEL=1), recopier PWM IN → PWM OUT
+  // Si mode radiocommande (SEL=1), COPIE SIGNAL DIRECTE
   if (radioReceiver.isRadioControlMode()) {
-    int sailAngleRC = radioReceiver.pwmToAngle(radioReceiver.getPWM1());
-    int rudderAngleRC = radioReceiver.pwmToAngle(radioReceiver.getPWM2());
-    servoControl.setAnglesDirect(sailAngleRC, rudderAngleRC);
+    // COPIE SIGNAL DIRECTE : Passer les valeurs PWM en microsecondes
+    int sailPWMus = radioReceiver.getPWM1();
+    int rudderPWMus = radioReceiver.getPWM2();
     
-    // Mettre à jour les variables internes pour cohérence
-    sailAngle = servoControl.getSailAngle();
-    rudderAngle = servoControl.getRudderAngle();
+    servoControl.setAnglesDirect(sailPWMus, rudderPWMus);
+    
+    // Debug pour vérifier la copie (toutes les 500ms)
+    // static unsigned long lastDebug = 0;
+    // if (millis() - lastDebug > 500) {
+    //   Serial.print("SIGNAL COPY: Input Sail=");
+    //   Serial.print(sailPWMus);
+    //   Serial.print("µs, Rudder=");
+    //   Serial.print(rudderPWMus);
+    //   Serial.println("µs");
+    //   lastDebug = millis();
+    // }
   }
   // Si mode autonome (SEL=0), les servos sont contrôlés par la logique de navigation
   // (les fonctions setSailAngle/setRudderAngle seront appelées dans la logique de navigation)
@@ -188,9 +178,9 @@ void loop() {
       handleNavigation();
     }
 
-    // Mise à jour GPS et envoi d'informations
-    gpsBoat.upDatePosition();
-    sendInfo();
+    // Mise à jour GPS et envoi d'informations (désactivé pour mode manuel)
+    // gpsBoat.upDatePosition();
+    // sendInfo();
     sendTimer = millis();
   }
 }
@@ -397,7 +387,7 @@ void sendInfo() {
   message += "}";
 
   String jsonFormattedMessage = "{\"origin\":\"boat\",\"type\":\"info\",\"message\":" + message + "}";
-  Serial.println(jsonFormattedMessage);
+  // Serial.println(jsonFormattedMessage);  // Désactivé pour mode manuel
 
   LoRa.beginPacket();
   LoRa.print(jsonFormattedMessage);
@@ -408,14 +398,7 @@ void sendInfo() {
 // MESSAGES JSON
 // ============================================================================
 void jsonMessage(String origin, String type, String message) {
-  String jsonFormattedMessage = "{\"origin\":\"" + origin + "\",\"type\":\"" + type + "\",\"message\":\"" + message + "\"}";
-  Serial.println(jsonFormattedMessage);
-
-  if (LoRa.availableForWrite()) {
-    LoRa.beginPacket();
-    LoRa.print(jsonFormattedMessage);
-    LoRa.endPacket();
-  }
+  // MODE MANUEL : Pas de messages pour performance maximale
 }
 
 // ============================================================================

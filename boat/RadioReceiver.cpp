@@ -23,17 +23,26 @@ void RadioReceiver::update() {
 }
 
 int RadioReceiver::readPWM(int pin) {
-    // Lit la largeur d'impulsion en microsecondes
-    // Timeout de 25ms (supérieur à la période PWM de 20ms)
-    unsigned long pulseWidth = pulseIn(pin, HIGH, 25000);
+    // LECTURE PRÉCISE : Moyenne de 3 mesures pour stabilité
+    unsigned long totalPulse = 0;
+    int validReadings = 0;
     
-    if (pulseWidth == 0) {
-        // Pas de signal, retourner valeur par défaut (milieu)
-        return 1500;
+    for (int i = 0; i < 3; i++) {
+        unsigned long pulseWidth = pulseIn(pin, HIGH, 25000);
+        if (pulseWidth > 0) {
+            totalPulse += pulseWidth;
+            validReadings++;
+        }
     }
     
-    // Limiter la plage entre 1000 et 2000 µs
-    return constrain(pulseWidth, RADIO_PWM_MIN, RADIO_PWM_MAX);
+    if (validReadings == 0) {
+        return 1500; // Valeur par défaut
+    }
+    
+    unsigned long avgPulse = totalPulse / validReadings;
+    
+    // COPIE EXACTE : Pas de contrainte pour garder le signal original
+    return avgPulse;
 }
 
 void RadioReceiver::checkMode() {

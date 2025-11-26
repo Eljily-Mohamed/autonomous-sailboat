@@ -44,7 +44,7 @@
 // Configuration PWM Input
 #define RADIO_PWM_MIN 1000   // Valeur PWM minimum (µs)
 #define RADIO_PWM_MAX 2000  // Valeur PWM maximum (µs)
-#define RADIO_PWM_READ_INTERVAL 50  // Intervalle de lecture PWM (ms)
+#define RADIO_PWM_READ_INTERVAL 20  // Intervalle de lecture PWM (ms) - Plus rapide pour copie signal
 
 // ============================================================================
 // CONNEXIONS MOTEUR/ESC (PWM Output)

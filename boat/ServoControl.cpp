@@ -34,14 +34,42 @@ void ServoControl::setRudderAngle(float angle) {
     rudderServo.write(constrain((int)angle, 0, 180));
 }
 
-void ServoControl::setAnglesDirect(int sailAngle, int rudderAngle) {
-    // Pour mode radiocommande - valeurs directes 0-180°
-    sailServo.write(constrain(sailAngle, 0, 180));
-    rudderServo.write(constrain(rudderAngle, 0, 180));
+void ServoControl::setAnglesDirect(int sailPWMus, int rudderPWMus) {
+    // COPIE SIGNAL EXACTE : Utiliser writeMicroseconds pour précision maximale
     
-    // Mettre à jour les variables internes pour cohérence
-    this->sailAngle = sailAngle - 90;
-    this->rudderAngle = rudderAngle - 90;
+    // Ajouter offset pour améliorer la sensibilité aux petites variations
+    static int lastSailPWM = 1500;
+    static int lastRudderPWM = 1500;
+    
+    // Appliquer un offset si la variation est très petite (< 10µs)
+    int sailDiff = abs(sailPWMus - lastSailPWM);
+    int rudderDiff = abs(rudderPWMus - lastRudderPWM);
+    
+    if (sailDiff > 0 && sailDiff < 10) {
+        // Amplifier les petites variations
+        sailPWMus = lastSailPWM + (sailPWMus > lastSailPWM ? 15 : -15);
+    }
+    
+    if (rudderDiff > 0 && rudderDiff < 10) {
+        // Amplifier les petites variations
+        rudderPWMus = lastRudderPWM + (rudderPWMus > lastRudderPWM ? 15 : -15);
+    }
+    
+    // Contraindre dans les limites servo
+    sailPWMus = constrain(sailPWMus, SERVO_PULSE_MIN, SERVO_PULSE_MAX);
+    rudderPWMus = constrain(rudderPWMus, SERVO_PULSE_MIN, SERVO_PULSE_MAX);
+    
+    // COPIE DIRECTE : Envoyer microsecondes exactes
+    sailServo.writeMicroseconds(sailPWMus);
+    rudderServo.writeMicroseconds(rudderPWMus);
+    
+    // Sauvegarder pour la prochaine fois
+    lastSailPWM = sailPWMus;
+    lastRudderPWM = rudderPWMus;
+    
+    // Mettre à jour les variables internes
+    this->sailAngle = map(sailPWMus, SERVO_PULSE_MIN, SERVO_PULSE_MAX, -90, 90);
+    this->rudderAngle = map(rudderPWMus, SERVO_PULSE_MIN, SERVO_PULSE_MAX, -90, 90);
 }
 
 float ServoControl::constrainSailAngle(float angle) {
