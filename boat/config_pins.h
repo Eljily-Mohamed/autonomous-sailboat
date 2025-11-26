@@ -21,7 +21,6 @@
 // CONNEXIONS SERVO-MOTEURS (PWM Output)
 // ============================================================================
 // Les signaux PWM passent par des amplificateurs 3.3V → 5V avant d'atteindre les servos
-// Configuration: OUTPUT_OPEN_DRAIN pour compatibilité avec amplificateurs
 #define SERVO_SAIL_PIN 2     // GPIO 2 - PWM1 OUT - Aileron (Sail)
 #define SERVO_RUDDER_PIN 25  // GPIO 25 - PWM2 OUT - Safran (Rudder)
 
@@ -51,7 +50,6 @@
 // CONNEXIONS MOTEUR/ESC (PWM Output)
 // ============================================================================
 // À définir selon la configuration matérielle
-// Configuration: OUTPUT_OPEN_DRAIN pour compatibilité avec ESC
 #define MOTOR_ESC_PIN 4      // GPIO 4 - PWM Motor/ESC (à vérifier selon câblage)
 
 // Configuration ESC
