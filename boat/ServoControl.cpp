@@ -1,6 +1,10 @@
 #include "ServoControl.hpp"
 
 void ServoControl::init() {
+    // Configuration des pins en drain ouvert (open-drain)
+    pinMode(SERVO_SAIL_PIN, OUTPUT_OPEN_DRAIN);
+    pinMode(SERVO_RUDDER_PIN, OUTPUT_OPEN_DRAIN);
+    
     // Configuration PWM
     sailServo.setPeriodHertz(SERVO_PWM_FREQ);
     rudderServo.setPeriodHertz(SERVO_PWM_FREQ);

@@ -1,6 +1,9 @@
 #include "MotorControl.hpp"
 
 void MotorControl::init() {
+    // Configuration du pin en drain ouvert (open-drain)
+    pinMode(MOTOR_ESC_PIN, OUTPUT_OPEN_DRAIN);
+    
     // Configuration PWM pour ESC
     escServo.setPeriodHertz(ESC_PWM_FREQ);
     escServo.attach(MOTOR_ESC_PIN, ESC_PULSE_MIN, ESC_PULSE_MAX);
