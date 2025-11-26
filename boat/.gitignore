@@ -1,0 +1,28 @@
+# Arduino/ESP32 Build files
+*.hex
+*.elf
+*.bin
+build/
+.vscode/
+.idea/
+
+# Arduino IDE
+*.prefs
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Compiled files
+*.o
+*.a
+*.d
+
+# Logs
+*.log
+
+
