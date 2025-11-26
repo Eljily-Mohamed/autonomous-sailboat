@@ -156,7 +156,6 @@ Tous les messages utilisent le format JSON :
 
 ## Documentation
 
-- `SCENARIO_COMMUNICATION.md` : Scénario détaillé de communication
 - `config_pins.h` : Configuration complète des pins GPIO
 
 ## Auteur
