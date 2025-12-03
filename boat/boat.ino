@@ -114,6 +114,37 @@ void handleServoControl() {
     radioReceiver.resetModeChanged();
   }
 
+  // TEST MODE : Afficher quel mode est actif avec détails SEL (toutes les 2 secondes)
+  static unsigned long lastModeTest = 0;
+  if (millis() - lastModeTest > 2000) {
+    // Lire directement le signal SEL pour debug
+    unsigned long selPulse = pulseIn(RADIO_SEL_IN, HIGH, 25000);
+    double selDuty = (selPulse / 20000.0) * 100.0;  // Calculer duty cycle en %
+    
+    // Réactiver temporairement Serial pour le test
+    Serial.begin(9600);
+    Serial.print("SEL Pin 23: ");
+    Serial.print(selPulse);
+    Serial.print("µs (");
+    Serial.print(selDuty, 2);
+    Serial.print("%) - ");
+    
+    if (radioReceiver.isRadioControlMode()) {
+      // Mode manuel actif - Afficher les valeurs PWM
+      int sailPWMus = radioReceiver.getPWM1();
+      int rudderPWMus = radioReceiver.getPWM2();
+      Serial.print("MODE: MANUEL - Sail=");
+      Serial.print(sailPWMus);
+      Serial.print("µs, Rudder=");
+      Serial.print(rudderPWMus);
+      Serial.println("µs");
+    } else {
+      // Mode autonome actif
+      Serial.println("MODE: AUTONOME");
+    }
+    lastModeTest = millis();
+  }
+
   // Si mode radiocommande (SEL=1), COPIE SIGNAL DIRECTE
   if (radioReceiver.isRadioControlMode()) {
     // COPIE SIGNAL DIRECTE : Passer les valeurs PWM en microsecondes
@@ -121,17 +152,6 @@ void handleServoControl() {
     int rudderPWMus = radioReceiver.getPWM2();
     
     servoControl.setAnglesDirect(sailPWMus, rudderPWMus);
-    
-    // Debug pour vérifier la copie (toutes les 500ms)
-    // static unsigned long lastDebug = 0;
-    // if (millis() - lastDebug > 500) {
-    //   Serial.print("SIGNAL COPY: Input Sail=");
-    //   Serial.print(sailPWMus);
-    //   Serial.print("µs, Rudder=");
-    //   Serial.print(rudderPWMus);
-    //   Serial.println("µs");
-    //   lastDebug = millis();
-    // }
   }
   // Si mode autonome (SEL=0), les servos sont contrôlés par la logique de navigation
   // (les fonctions setSailAngle/setRudderAngle seront appelées dans la logique de navigation)

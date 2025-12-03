@@ -58,11 +58,22 @@ int RadioReceiver::readPWM(int pin) {
 }
 
 void RadioReceiver::checkMode() {
-    bool selSignal = digitalRead(RADIO_SEL_IN);
+    // Lire le signal PWM sur le pin SEL (pin 23) au lieu de digitalRead
+    unsigned long selPulseWidth = pulseIn(RADIO_SEL_IN, HIGH, 25000);
+    
+    if (selPulseWidth == 0) {
+        // Pas de signal, garder le mode actuel
+        return;
+    }
+    
+    // Calculer le duty cycle : 6% = 1200µs sur période 20ms
+    // Si duty > 6% (1200µs) → Mode manuel
+    // Si duty < 6% (1200µs) → Mode autonome
+    bool newMode = (selPulseWidth > 1200);
     
     // Si le mode change, mettre à jour
-    if (selSignal != radioControlMode) {
-        radioControlMode = selSignal;
+    if (newMode != radioControlMode) {
+        radioControlMode = newMode;
         modeChanged = true;  // Marquer le changement
     }
 }
