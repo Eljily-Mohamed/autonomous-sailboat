@@ -58,7 +58,7 @@ int RadioReceiver::readPWM(int pin) {
 }
 
 void RadioReceiver::checkMode() {
-    // Lire le signal PWM sur le pin SEL (pin 23) au lieu de digitalRead
+    // Lire le signal PWM sur le pin SEL
     unsigned long selPulseWidth = pulseIn(RADIO_SEL_IN, HIGH, 25000);
     
     if (selPulseWidth == 0) {

@@ -39,7 +39,10 @@
 // Récepteur Pro-Tronik 2.4GHz
 #define RADIO_PWM1_IN 21     // GPIO 21 - PWM1 IN (CH4) - Aileron depuis radiocommande
 #define RADIO_PWM2_IN 22     // GPIO 22 - PWM2 IN (CH2) - Safran depuis radiocommande
-#define RADIO_SEL_IN 23      // GPIO 23 - SEL IN (CH6) - Sélection mode (0=autonome, 1=radiocommande)
+#define RADIO_SEL_IN 14      // GPIO 14 - SEL IN (CH6) - Sélection mode (0=autonome, 1=radiocommande)
+                              // NOTE: GPIO 23 est utilisé pour LoRa RST sur TTGO T-Beam V1.1
+                              // IMPORTANT: Si votre matériel est câblé sur GPIO 23, 
+                              // vous devez déplacer le câble vers GPIO 14
 
 // Configuration PWM Input
 #define RADIO_PWM_MIN 1136   // Valeur PWM minimum (µs) - 5.68% duty cycle
@@ -65,7 +68,7 @@
 #define LORA_MOSI 27         // GPIO 27 - MOSI (Master Out Slave In)
 #define LORA_SCK 5           // GPIO 5 - SCK (Serial Clock)
 #define LORA_CS 18           // GPIO 18 - CS (Chip Select)
-#define LORA_RST 14          // GPIO 14 - RST (Reset)
+#define LORA_RST 23          // GPIO 23 - RST (Reset) - TTGO T-Beam V1.1
 #define LORA_IRQ 26          // GPIO 26 - IRQ (Interrupt Request)
 
 #define LORA_BAND 433E6      // LoRa Band 433MHz (Europe)

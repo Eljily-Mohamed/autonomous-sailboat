@@ -36,6 +36,11 @@ MotorControl motorControl;
 String boatMode = "setup";
 int sendInterval = 1000;  // ms
 long sendTimer = -sendInterval;
+bool loraInitialized = false;  // Flag pour savoir si LoRa est initialisé
+unsigned long lastLoRaCheck = 0;  // Dernière vérification LoRa
+const unsigned long LORA_CHECK_INTERVAL = 10000;  // Vérifier LoRa toutes les 10 secondes
+int loraFailureCount = 0;  // Compteur d'échecs LoRa
+const int MAX_LORA_FAILURES = 3;  // Nombre max d'échecs avant réinitialisation
 
 // Waypoints
 String waypoints = "";
@@ -53,52 +58,179 @@ float rudderAngle = 20;
 // INITIALISATION GPS
 // ============================================================================
 void setupGPS() {
-  // jsonMessage("GPS", "info", "Initializing");
-  // gpsBoat.init();
+  Serial.println("[GPS] Initialisation...");
+  gpsBoat.init();
 
-  // int retryDelay = 500;
-  // int failCount = 30000 / retryDelay;  // Timeout 30 secondes (réduit pour tests)
+  int retryDelay = 500;
+  int failCount = 30000 / retryDelay;  // Timeout 30 secondes
 
-  // while (gpsBoat.getStatus() != 2 && failCount > 0) {
-  //   gpsBoat.upDatePosition();
-  //   failCount--;
-  //   delay(retryDelay);
-  // }
+  Serial.println("  Attente signal GPS...");
+  while (gpsBoat.getStatus() != 2 && failCount > 0) {
+    gpsBoat.upDatePosition();
+    failCount--;
+    
+    if (failCount % 10 == 0) {  // Afficher toutes les 5 secondes
+      Serial.print("  Statut GPS: ");
+      int status = gpsBoat.getStatus();
+      switch(status) {
+        case 0: Serial.println("Aucun signal"); break;
+        case 1: Serial.println("Recherche satellites..."); break;
+        case 2: Serial.println("Fix GPS obtenu"); break;
+        default: Serial.print("Inconnu ("); Serial.print(status); Serial.println(")"); break;
+      }
+    }
+    
+    delay(retryDelay);
+  }
 
-  // if (failCount == 0) {
-  //   jsonMessage("GPS", "error", "Setup failed - Continuing without GPS");
-  //   jsonMessage("GPS", "warning", "GPS will retry in background");
-  //   // NE PAS BLOQUER - Continuer sans GPS pour permettre les tests
-  // } else {
-  //   jsonMessage("GPS", "info", "Ready");
-  // }
+  if (failCount == 0) {
+    Serial.println("[GPS] ⚠ Timeout - Continuation sans GPS fix");
+    Serial.println("  Le GPS continuera à essayer en arrière-plan");
+  } else {
+    Serial.println("[GPS] ✓ Prêt");
+    Serial.print("  Position: ");
+    Serial.print(gpsBoat.getLat(), 6);
+    Serial.print(", ");
+    Serial.println(gpsBoat.getLng(), 6);
+  }
+}
+
+// ============================================================================
+// DIAGNOSTIC LoRa - Détecte l'erreur exacte (seulement en cas d'échec)
+// ============================================================================
+void diagnoseLoRaError() {
+  SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
+  delay(100);
+  
+  // Lire le registre de version
+  digitalWrite(LORA_CS, LOW);
+  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.transfer(0x42);
+  uint8_t version = SPI.transfer(0x00);
+  SPI.endTransaction();
+  digitalWrite(LORA_CS, HIGH);
+  
+  Serial.print("[LoRa] Erreur: ");
+  if (version == 0x00 || version == 0xFF) {
+    Serial.println("Pas de communication SPI - Vérifier connexions et alimentation");
+  } else if (version != 0x12) {
+    Serial.print("Version incorrecte (0x");
+    if (version < 0x10) Serial.print("0");
+    Serial.print(version, HEX);
+    Serial.println(") - Module peut être endommagé");
+  } else {
+    Serial.println("Initialisation échouée - Vérifier fréquence et paramètres");
+  }
 }
 
 // ============================================================================
 // INITIALISATION LoRa
 // ============================================================================
-void setupLoRa() {
-  // LoRa silencieux pour mode manuel
+bool setupLoRa() {
+  Serial.println("[LoRa] Initialisation...");
+  Serial.print("  Fréquence: ");
+  Serial.print(LORA_BAND / 1E6);
+  Serial.println(" MHz");
+  
+  // Reset matériel du module LoRa
+  Serial.println("  Reset matériel...");
+  pinMode(LORA_RST, OUTPUT);
+  digitalWrite(LORA_RST, LOW);
+  delay(50);
+  digitalWrite(LORA_RST, HIGH);
+  delay(100);
+  
+  // Initialiser SPI
+  Serial.println("  Configuration SPI...");
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
+  delay(200);
+  
+  // Configurer les pins LoRa
+  Serial.print("  Pins: CS=");
+  Serial.print(LORA_CS);
+  Serial.print(", RST=");
+  Serial.print(LORA_RST);
+  Serial.print(", IRQ=");
+  Serial.println(LORA_IRQ);
   LoRa.setPins(LORA_CS, LORA_RST, LORA_IRQ);
-  LoRa.begin(LORA_BAND);  // Pas de vérification, continue quoi qu'il arrive
+  delay(200);
+  
+  // Essayer d'initialiser LoRa avec retry
+  Serial.println("  Démarrage LoRa...");
+  int initResult = 0;
+  int retryCount = 5;
+  
+  for (int i = 0; i < retryCount; i++) {
+    initResult = LoRa.begin(LORA_BAND);
+    if (initResult == 1) {
+      Serial.println("  ✓ LoRa.begin() réussi");
+      break;
+    } else {
+      Serial.print("  ✗ Tentative ");
+      Serial.print(i + 1);
+      Serial.print("/");
+      Serial.print(retryCount);
+      Serial.print(" échouée (code: ");
+      Serial.print(initResult);
+      Serial.println(")");
+    }
+    
+    // Reset matériel avant la prochaine tentative
+    if (i < retryCount - 1) {
+      digitalWrite(LORA_RST, LOW);
+      delay(50);
+      digitalWrite(LORA_RST, HIGH);
+      delay(300);
+    }
+  }
+  
+  if (initResult != 1) {
+    Serial.println("[LoRa] ERREUR: Initialisation échouée");
+    diagnoseLoRaError();
+    loraInitialized = false;
+    return false;
+  }
+  
+  // Configurer les paramètres LoRa
+  Serial.println("  Configuration paramètres...");
+  LoRa.setSpreadingFactor(7);
+  LoRa.setSignalBandwidth(125E3);
+  LoRa.setCodingRate4(5);
+  Serial.println("    - Spreading Factor: 7");
+  Serial.println("    - Bandwidth: 125 kHz");
+  Serial.println("    - Coding Rate: 4/5");
+  
+  Serial.println("[LoRa] ✓ Initialisé avec succès");
+  loraInitialized = true;
+  return true;
 }
+
 
 // ============================================================================
 // SETUP
 // ============================================================================
 void setup() {
-  // Serial.begin(SERIAL_BAUD_RATE);  // Désactivé pour mode manuel pur
-  delay(500);
-
-  // MODE MANUEL FOCUS : Pas de messages, juste l'initialisation
-  setupLoRa();
-  // setupGPS();  // Désactivé pour se concentrer sur le mode manuel
+  Serial.begin(SERIAL_BAUD_RATE);
+  delay(1000);  // Stabilisation alimentation
   
+  // Initialiser LoRa
+  if (!setupLoRa()) {
+    Serial.println("[System] LoRa non disponible - Continuation sans LoRa");
+  }
+  
+  // Initialiser GPS
+  setupGPS();
+  
+  // Initialiser les autres modules
+  Serial.println("[System] Initialisation des modules...");
   servoControl.init();
+  Serial.println("  ✓ Servos");
   radioReceiver.init();
+  Serial.println("  ✓ Radio");
   motorControl.init();
-
+  Serial.println("  ✓ Moteur");
+  
+  Serial.println("[System] ✓ Système prêt");
   boatMode = "setup-ready";
 }
 
@@ -114,37 +246,6 @@ void handleServoControl() {
     radioReceiver.resetModeChanged();
   }
 
-  // TEST MODE : Afficher quel mode est actif avec détails SEL (toutes les 2 secondes)
-  static unsigned long lastModeTest = 0;
-  if (millis() - lastModeTest > 2000) {
-    // Lire directement le signal SEL pour debug
-    unsigned long selPulse = pulseIn(RADIO_SEL_IN, HIGH, 25000);
-    double selDuty = (selPulse / 20000.0) * 100.0;  // Calculer duty cycle en %
-    
-    // Réactiver temporairement Serial pour le test
-    Serial.begin(9600);
-    Serial.print("SEL Pin 23: ");
-    Serial.print(selPulse);
-    Serial.print("µs (");
-    Serial.print(selDuty, 2);
-    Serial.print("%) - ");
-    
-    if (radioReceiver.isRadioControlMode()) {
-      // Mode manuel actif - Afficher les valeurs PWM
-      int sailPWMus = radioReceiver.getPWM1();
-      int rudderPWMus = radioReceiver.getPWM2();
-      Serial.print("MODE: MANUEL - Sail=");
-      Serial.print(sailPWMus);
-      Serial.print("µs, Rudder=");
-      Serial.print(rudderPWMus);
-      Serial.println("µs");
-    } else {
-      // Mode autonome actif
-      Serial.println("MODE: AUTONOME");
-    }
-    lastModeTest = millis();
-  }
-
   // Si mode radiocommande (SEL=1), COPIE SIGNAL DIRECTE
   if (radioReceiver.isRadioControlMode()) {
     // COPIE SIGNAL DIRECTE : Passer les valeurs PWM en microsecondes
@@ -158,16 +259,74 @@ void handleServoControl() {
 }
 
 // ============================================================================
+// VÉRIFICATION ET RÉINITIALISATION LoRa
+// ============================================================================
+void checkAndReinitLoRa() {
+  if (!loraInitialized) {
+    return;  // Si LoRa n'est pas initialisé, ne rien faire
+  }
+  
+  // Vérifier périodiquement si LoRa répond encore
+  if (millis() - lastLoRaCheck > LORA_CHECK_INTERVAL) {
+    lastLoRaCheck = millis();
+    
+    // Test simple : essayer d'envoyer un paquet de test
+    LoRa.beginPacket();
+    LoRa.print("TEST");
+    int result = LoRa.endPacket();
+    
+    if (!result) {
+      loraFailureCount++;
+      
+      if (loraFailureCount >= MAX_LORA_FAILURES) {
+        Serial.println("[LoRa] ⚠ Échecs détectés - Réinitialisation...");
+        loraInitialized = false;
+        loraFailureCount = 0;
+        
+        delay(100);
+        if (setupLoRa()) {
+          Serial.println("[LoRa] ✓ Réinitialisation réussie");
+        } else {
+          Serial.println("[LoRa] ✗ Réinitialisation échouée");
+        }
+      }
+    } else {
+      if (loraFailureCount > 0) {
+        loraFailureCount = 0;
+      }
+    }
+  }
+}
+
+// ============================================================================
 // BOUCLE PRINCIPALE
 // ============================================================================
 void loop() {
   // Gérer le contrôle des servos selon le mode
   handleServoControl();
 
-  // Réception LoRa
-  if (LoRa.parsePacket()) {
+  // Vérifier et réinitialiser LoRa si nécessaire
+  checkAndReinitLoRa();
+
+  // Réception LoRa (seulement si initialisé)
+  if (loraInitialized && LoRa.parsePacket()) {
+    String data = "";
     while (LoRa.available()) {
-      String data = LoRa.readString();
+      data += (char)LoRa.read();
+    }
+    
+    // Afficher le message reçu depuis le serveur
+    if (data.length() > 0) {
+      Serial.print("[LoRa] ← Reçu: ");
+      Serial.println(data);
+      
+      // Afficher le RSSI et SNR
+      Serial.print("  RSSI: ");
+      Serial.print(LoRa.packetRssi());
+      Serial.print(" dBm, SNR: ");
+      Serial.print(LoRa.packetSnr());
+      Serial.println(" dB");
+      
       parseMessage(data);
     }
   }
@@ -198,9 +357,38 @@ void loop() {
       handleNavigation();
     }
 
-    // Mise à jour GPS et envoi d'informations (désactivé pour mode manuel)
-    // gpsBoat.upDatePosition();
-    // sendInfo();
+    // Mise à jour GPS et envoi d'informations
+    gpsBoat.upDatePosition();
+    
+    // Debug GPS périodique
+    static unsigned long lastGpsDebug = 0;
+    if (millis() - lastGpsDebug > 5000) {  // Toutes les 5 secondes
+      lastGpsDebug = millis();
+      int gpsStatus = gpsBoat.getStatus();
+      if (gpsStatus == 2) {
+        Serial.print("[GPS] Position: ");
+        Serial.print(gpsBoat.getLat(), 6);
+        Serial.print(", ");
+        Serial.print(gpsBoat.getLng(), 6);
+        Serial.print(" | Cap: ");
+        Serial.print(gpsBoat.getSmoothHeading(), 1);
+        Serial.print("° | Satellites: ");
+        Serial.println(gpsBoat.getSatellites());
+      } else {
+        Serial.print("[GPS] Statut: ");
+        switch(gpsStatus) {
+          case 0: Serial.println("Aucun signal"); break;
+          case 1: Serial.println("Recherche..."); break;
+          default: Serial.println("Inconnu"); break;
+        }
+      }
+    }
+    
+    // Envoyer des informations périodiquement si LoRa est initialisé
+    if (loraInitialized && (boatMode == "setup-ready" || boatMode == "route-ready" || boatMode == "wind-ready" || boatMode == "navigate")) {
+      sendInfo();
+    }
+    
     sendTimer = millis();
   }
 }
@@ -407,11 +595,25 @@ void sendInfo() {
   message += "}";
 
   String jsonFormattedMessage = "{\"origin\":\"boat\",\"type\":\"info\",\"message\":" + message + "}";
-  // Serial.println(jsonFormattedMessage);  // Désactivé pour mode manuel
-
+  
+  // Envoyer via LoRa seulement si initialisé
+  if (!loraInitialized) {
+    return;
+  }
+  
+  // Debug: afficher ce qui est envoyé
+  Serial.print("[LoRa] → Envoi: ");
+  Serial.println(jsonFormattedMessage);
+  
   LoRa.beginPacket();
   LoRa.print(jsonFormattedMessage);
-  LoRa.endPacket();
+  int result = LoRa.endPacket();
+  
+  if (result) {
+    Serial.println("  ✓ Message envoyé");
+  } else {
+    Serial.println("  ✗ Erreur envoi");
+  }
 }
 
 // ============================================================================
