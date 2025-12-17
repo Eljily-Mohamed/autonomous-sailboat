@@ -1,11 +1,14 @@
 site_name: AutoBoat Documentation
 site_description: Documentation complète du projet AutoBoat - Système de navigation autonome pour voilier
 site_author: Mohamed EL JILY
-site_url: https://eljily-mohamed.github.io/Arduino
+site_url: https://eljily-mohamed.github.io/autonomous-sailboat
 
-repo_name: Arduino
-repo_url: https://github.com/Eljily-Mohamed/Arduino
-edit_uri: edit/main/docs/
+repo_name: autonomous-sailboat
+repo_url: https://github.com/Eljily-Mohamed/autonomous-sailboat
+edit_uri: edit/main/Arduino/docs/
+
+# Répertoire de la documentation
+docs_dir: Arduino/docs
 
 theme:
   name: material
